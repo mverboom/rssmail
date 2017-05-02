@@ -1,0 +1,142 @@
+#!/usr/bin/php5
+<?php
+/* rss2email
+ * 
+ * Parse RSS feed into email
+ *
+ * 20170502 MV: Changed setup with html email and restructure content
+ * 20170501 MV: Changed to directly email instead of inserting into mantis
+ * 20150323 MV: Changed time check to feed timestamp only
+ * 20150206 MV: Fixed minor bugs
+ * 20150205 MV: Initial version
+ */
+
+require_once('/usr/share/php/simplepie/simplepie.inc');
+
+function send_email($name, $category, $title, $description, $link) {
+   $headers = 'From: ' . $GLOBALS['config']['email-from'] . "\r\n";
+   $headers .= "MIME-Version: 1.0\r\n";
+   $headers .= "Content-Type: text/html; charset=ISO-8859-1\r\n";
+
+   $subject = '[' . $category . '] ' . $name . ': ' . $title;
+
+   $message = '<html><body>';
+   $message .= $description;
+   $message .= '<p><a href="' . $link . '">' . $link . '</a>';
+   $message .= '</body></html>';
+
+   mail($GLOBALS['config']['email-to'], $subject , $message, $headers);
+}
+
+function process_feed($name, $url, $category) {
+
+   $feed = new SimplePie();
+   $feed->set_feed_url($url);
+   $feed->force_feed(true);
+   if (!$feed->init()) {
+      echo "Error opening feed: " . $name . " (" . $url . ")\n";
+      echo $feed->error();
+      return;
+   } else
+   {
+      if (isset($GLOBALS['status'][$name]))
+         $since = $GLOBALS['status'][$name];
+      else
+         $since = 0;
+   }
+   $newest = $since;
+
+   $feed->handle_content_type();
+   foreach ($feed->get_items() as $item):
+      if ($item->get_date('U') > $since) {
+         if ($item->get_date('U') > $newest)
+            $newest = $item->get_date('U');
+         send_email($name, $category, $item->get_title(), $item->get_description(), $item->get_link());
+      }
+   endforeach;
+   if ($newest > $since)
+      $GLOBALS['status'][$name] = $newest;
+}
+
+function read_config($configfile) {
+   global $config;
+   global $feed;
+
+   $configinput = parse_ini_file($configfile, true);
+   if (!is_array($configinput)) {
+      printf("Unable to read/parse configfile: %s\n", $configfile);
+      usage();
+   }
+
+   if (!is_array($configinput['settings'])) {
+      printf("Settings section missing in config file\n");
+      usage();
+   }
+
+   $config = $configinput['settings'];
+
+   if (!isset($config['statusfile'])) {
+      printf("statusfile missing in settings section of config file\n");
+      usage();
+   }
+
+   if (!isset($config['email-to'])) {
+      printf("email-to missing in settings section of config file\n");
+      usage();
+   }
+
+   if (!isset($config['email-from'])) {
+      printf("email-from missing in settings section of config file\n");
+      usage();
+   }
+
+   if (!isset($config['defaultcategory'])) {
+      printf("defaultcategory missing in settings section of config file\n");
+      usage();
+   }
+
+   unset($configinput['settings']);
+   $feed = $configinput;
+}
+
+function usage() {
+   printf("Usage: rssmail -f configfile\n");
+   printf("Converts rss feeds to emails.\n");
+   exit(1);
+}
+
+function main() {
+   error_reporting(1);
+
+   global $status;
+
+   $options = getopt("f:");
+
+   if (isset($options['f']))
+      $configfile=$options['f'];
+   else {
+      printf("No configuration file given.\n");
+      usage();
+   }
+
+   read_config($configfile);
+
+   $content = file_get_contents($GLOBALS['config']['statusfile']);
+   if (isset($content))
+      $status = unserialize($content);
+
+   foreach ($GLOBALS['feed'] as $item):
+      if (!isset($item['url']) || !isset($item['name']))
+         printf("Section does not contain all required variables for a feed. skipping\n");
+      else
+         if (isset($item['category']))
+            process_feed($item['name'], $item['url'], $item['category']);
+         else
+            process_feed($item['name'], $item['url'], $GLOBALS['config']['defaultcategory']);
+   endforeach;
+   $content = serialize($status);
+   file_put_contents($GLOBALS['config']['statusfile'], $content);
+}
+
+main();
+?>
