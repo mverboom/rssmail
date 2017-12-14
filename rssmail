@@ -1,142 +1,134 @@
-#!/usr/bin/php5
-<?php
-/* rss2email
- * 
- * Parse RSS feed into email
- *
- * 20170502 MV: Changed setup with html email and restructure content
- * 20170501 MV: Changed to directly email instead of inserting into mantis
- * 20150323 MV: Changed time check to feed timestamp only
- * 20150206 MV: Fixed minor bugs
- * 20150205 MV: Initial version
- */
+#!/bin/bash
+#
+# rssmail
+#
+# Process rss feeds and send a mail for each new item.
+#
+# ToDo:
+# v Convert epoch timestamps in config to readable dates
+# * Commandline parsing with override option for config file
+# v HTML mail
+# v Handle empty date field (set to today)
+# * Write man page
+# * multiple default config file locations
 
-require_once('/usr/share/php/simplepie/simplepie.inc');
-
-function send_email($name, $category, $title, $description, $link) {
-   $headers = 'From: ' . $GLOBALS['config']['email-from'] . "\r\n";
-   $headers .= "MIME-Version: 1.0\r\n";
-   $headers .= "Content-Type: text/html; charset=ISO-8859-1\r\n";
-
-   $subject = '[' . $category . '] ' . $name . ': ' . $title;
-
-   $message = '<html><body>';
-   $message .= $description;
-   $message .= '<p><a href="' . $link . '">' . $link . '</a>';
-   $message .= '</body></html>';
-
-   mail($GLOBALS['config']['email-to'], $subject , $message, $headers);
+processfeed() {
+   name="$1"
+   lasttime=$2
+   url="$3"
+   maxtime=$lasttime
+   while read line
+   do
+      fn=${line/:*/}
+      data=${line/????:/}
+      case "$fn" in
+         "date") time=$(date -d "$data" "+%s")
+         ;;
+         "titl") title="$data"
+         ;;
+         "link") link="$data"
+         ;;
+         "desc")
+            desc="$data"
+            if test $lasttime -lt $time
+            then
+               echo -e "<html><body><b>$title</b><p>$desc<p><a href=$link>$link</a></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r $mailfrom -s "$name: $title" $mailto
+               test $time -gt $maxtime && maxtime=$time
+            fi
+         ;;
+      esac
+   done < <(wget -q -O - "$url" | xmlstarlet sel -t -m "//item" -o "titl:" -v "title" --nl -o "link:" -v "link" --nl -o "date:" -v "pubDate" --nl -o "desc:" -v "description" --nl)
+   echo $maxtime
 }
 
-function process_feed($name, $url, $category) {
+readconfig() {
+   test -f ~/.rssmail.cfg || { echo "~/.rssmail.cfg doesn't exist"; exit 1; }
 
-   $feed = new SimplePie();
-   $feed->set_feed_url($url);
-   $feed->force_feed(true);
-   if (!$feed->init()) {
-      echo "Error opening feed: " . $name . " (" . $url . ")\n";
-      echo $feed->error();
-      return;
-   } else
-   {
-      if (isset($GLOBALS['status'][$name]))
-         $since = $GLOBALS['status'][$name];
+   declare -g -A newtime time url
+
+   items=0
+   while read line
+   do
+      if test "$line" != "" -a "${line:0:1}" != "#"
+      then
+         id=$( echo "$line" | sed 's/\([^=]*\)=.*/\1/')
+         data=$( echo "$line" | sed 's/[^=]*=\(.*\)/\1/')
+         case "$id" in
+         "feed")
+            items=$(( $items + 1 ))
+            name=$( echo "$data" | sed 's/\([^:]*\):.*/\1/' )
+            stamp=$( echo "$data" | sed 's/[^:]*:\([^@]*\)@.*/\1/' )
+            if test "$stamp" = ""
+            then
+               time[$name]=$( date "+%s" )
+            else
+               time[$name]=$( date -d "$stamp" "+%s" )
+            fi
+            url[$name]=$( echo "$data" | sed 's/[^:]*:[^@]*@\(.*\)/\1/' )
+         ;;
+         "email-to")
+            mailto="$data"
+         ;;
+         "email-from")
+            mailfrom="$data"
+         ;;
+         *)
+            echo "Error, unknown config line: $line"
+            exit 1
+         ;;
+         esac
+      fi
+   done < ~/.rssmail.cfg
+   test $items -eq 0 && { echo "No feeds found to process."; exit 1; }
+   test "$mailto" = "" && { echo "No email-to defined."; exit 1; }
+   test "$mailfrom" = "" && { echo "No email-from defined."; exit 1; }
+}
+
+rewriteconfig() {
+
+   while read line
+   do
+      if test "$line" != "" -a "${line:0:1}" != "#"
+      then
+         id=$( echo "$line" | sed 's/\([^=]*\)=.*/\1/')
+         data=$( echo "$line" | sed 's/[^=]*=\(.*\)/\1/')
+         case "$id" in
+         "feed")
+            name=$( echo "$data" | sed 's/\([^:]*\):.*/\1/' )
+            stamp=$( date -d "@${newtime[$name]}" "+%Y%m%d %H:%M:%S" )
+            echo "feed=$name:$stamp@${url[$name]}"
+         ;;
+         *)
+            echo "$line"
+         ;;
+         esac
       else
-         $since = 0;
-   }
-   $newest = $since;
-
-   $feed->handle_content_type();
-   foreach ($feed->get_items() as $item):
-      if ($item->get_date('U') > $since) {
-         if ($item->get_date('U') > $newest)
-            $newest = $item->get_date('U');
-         send_email($name, $category, $item->get_title(), $item->get_description(), $item->get_link());
-      }
-   endforeach;
-   if ($newest > $since)
-      $GLOBALS['status'][$name] = $newest;
+         echo "$line"
+      fi
+   done < ~/.rssmail.cfg > ~/.rssmail.cfg.new
+   mv ~/.rssmail.cfg.new ~/.rssmail.cfg
 }
 
-function read_config($configfile) {
-   global $config;
-   global $feed;
+sanitycheck() {
+   ok=1
 
-   $configinput = parse_ini_file($configfile, true);
-   if (!is_array($configinput)) {
-      printf("Unable to read/parse configfile: %s\n", $configfile);
-      usage();
-   }
-
-   if (!is_array($configinput['settings'])) {
-      printf("Settings section missing in config file\n");
-      usage();
-   }
-
-   $config = $configinput['settings'];
-
-   if (!isset($config['statusfile'])) {
-      printf("statusfile missing in settings section of config file\n");
-      usage();
-   }
-
-   if (!isset($config['email-to'])) {
-      printf("email-to missing in settings section of config file\n");
-      usage();
-   }
-
-   if (!isset($config['email-from'])) {
-      printf("email-from missing in settings section of config file\n");
-      usage();
-   }
-
-   if (!isset($config['defaultcategory'])) {
-      printf("defaultcategory missing in settings section of config file\n");
-      usage();
-   }
-
-   unset($configinput['settings']);
-   $feed = $configinput;
+   for util in xmlstarlet sed mail
+   do
+      ! which $util > /dev/null 2>&1 && { echo "$util not found, is required."; ok=0; }
+   done
+   test $ok -ne 1 && exit
 }
 
-function usage() {
-   printf("Usage: rssmail -f configfile\n");
-   printf("Converts rss feeds to emails.\n");
-   exit(1);
+main() {
+   sanitycheck
+   readconfig
+
+   for name in ${!time[@]}
+   do
+      newtime[$name]=$( processfeed "$name" "${time[$name]}" "${url[$name]}" )
+   done
+
+   rewriteconfig
 }
 
-function main() {
-   error_reporting(1);
-
-   global $status;
-
-   $options = getopt("f:");
-
-   if (isset($options['f']))
-      $configfile=$options['f'];
-   else {
-      printf("No configuration file given.\n");
-      usage();
-   }
-
-   read_config($configfile);
-
-   $content = file_get_contents($GLOBALS['config']['statusfile']);
-   if (isset($content))
-      $status = unserialize($content);
-
-   foreach ($GLOBALS['feed'] as $item):
-      if (!isset($item['url']) || !isset($item['name']))
-         printf("Section does not contain all required variables for a feed. skipping\n");
-      else
-         if (isset($item['category']))
-            process_feed($item['name'], $item['url'], $item['category']);
-         else
-            process_feed($item['name'], $item['url'], $GLOBALS['config']['defaultcategory']);
-   endforeach;
-   $content = serialize($status);
-   file_put_contents($GLOBALS['config']['statusfile'], $content);
-}
-
-main();
-?>
+main
