@@ -9,7 +9,7 @@ of security related RSS feeds and recieve email alerts when new issue's are publ
 The script requires a configuration file which is expected in the homedirectory of the
 user running the script:
 
-  ~/.rssmail.cfg
+`~/.rssmail.cfg`
 
 Lines in the configuration file that are empty or start with a # will be ignored. So it
 is possible to add comments in the file.
@@ -23,9 +23,11 @@ The configuration file has generic settings and feeds configuration.
 The specifies 1 or more email (comma seperated) email addresses where output is sent to.
 
 For example, send mail to admin user:
+
 `email-to=admin@example.com`
 
 Send mail to Alice and Bob:
+
 `email-to=alice@example.com,bob@example.com`
 
 **email-from**
@@ -33,6 +35,7 @@ Send mail to Alice and Bob:
 This specifies the sending email address. Can be useful for filtering.
 
 Send mail as user rssfeed:
+
 `email-from=rssfeed@example.com`
 
 ### Feeds
@@ -47,7 +50,7 @@ Each feed line contains 3 elements:
 
 The items are seperated like this:
 
-**<feed name>:<timestamp>@<url>**
+**\<feed name\>:\<timestamp\>@\<url\>**
 
 When specifying a new feed, the timestamp can be ommited. This will set the feed to the
 latest item. Any item published in the feed will not be mailed.
