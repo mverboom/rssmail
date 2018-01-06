@@ -59,3 +59,18 @@ An example feed line for the EFF Action Center feed:
 
 `feed=EFF action:@https://act.eff.org/action.atom`
 
+## Running
+
+The script has a couple of dependancies. The script checks if these are available:
+
+* xmlstarlet
+* sed
+* mail
+
+The script can be started without arguments:
+
+`rssmail`
+
+It is most useful to start it from cron, for example every hour, 10 past the hour:
+
+`10 * * * * /home/user/bin/rssmail`
