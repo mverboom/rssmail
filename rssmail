@@ -57,6 +57,8 @@ readconfig() {
          "feed")
             items=$(( $items + 1 ))
             name=$( echo "$data" | sed 's/\([^:]*\):.*/\1/' )
+            test "$name" = "" && { echo "Feed has no name."; exit 1; }
+            test "$name" != "${name// /}" && { echo "Feed name $name contains spaces."; exit 1; }
             stamp=$( echo "$data" | sed 's/[^:]*:\([^@]*\)@.*/\1/' )
             if test "$stamp" = ""
             then
@@ -65,6 +67,7 @@ readconfig() {
                time[$name]=$( date -d "$stamp" "+%s" )
             fi
             url[$name]=$( echo "$data" | sed 's/[^:]*:[^@]*@\(.*\)/\1/' )
+            test "${url[$name]}" = "" && { echo "Feed $name has no url."; exit 1; }
          ;;
          "email-to")
             mailto="$data"
