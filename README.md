@@ -52,6 +52,8 @@ The items are seperated like this:
 
 **\<feed name\>:\<timestamp\>@\<url\>**
 
+The feed name should not contain spaces.
+
 When specifying a new feed, the timestamp can be ommited. This will set the feed to the
 latest item. Any item published in the feed will not be mailed.
 
