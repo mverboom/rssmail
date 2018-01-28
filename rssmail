@@ -18,8 +18,8 @@ processfeed() {
    url="$3"
    tmpfile=$( tempfile )
    maxtime=$lasttime
-   wget -q -4 --timeout=10 -O $tmpfile "$url" || { echo "Error retrieving $url."; rm -f $tmpfile; return 1; }
-   cat $tmpfile | xmlstarlet sel -t -m "//item" -o "titl:" -v "title" --nl -o "link:" -v "link" --nl -o "date:" -v "pubDate" --nl -o "desc:" -v "description" --nl > $tmpfile.parsed 2> /dev/null || { echo "Error parsing feed from $url."; rm -f $tmpfile $tmpfile.parsed; return 1; }
+   wget -q -4 --timeout=10 -O $tmpfile "$url" || { >&2 echo "Error retrieving $url."; rm -f $tmpfile; return 1; }
+   xmlstarlet sel -t -m "//item" -o "titl:" -v "title" --nl -o "link:" -v "link" --nl -o "date:" -v "pubDate" --nl -o "desc:" -v "description" --nl < $tmpfile > $tmpfile.parsed 2> /dev/null || { >&2 echo "Error parsing feed from $url."; rm -f $tmpfile $tmpfile.parsed; return 1; }
    rm -f $tmpfile
    while read line
    do
@@ -103,7 +103,12 @@ rewriteconfig() {
          case "$id" in
          "feed")
             name=$( echo "$data" | sed 's/\([^:]*\):.*/\1/' )
-            stamp=$( date -d "@${newtime[$name]}" "+%Y%m%d %H:%M:%S" )
+            if test "${newtime[$name]}" != ""
+            then
+               stamp=$( date -d "@${newtime[$name]}" "+%Y%m%d %H:%M:%S" )
+            else
+               stamp=""
+            fi
             echo "feed=$name:$stamp@${url[$name]}"
          ;;
          *)
@@ -133,7 +138,11 @@ main() {
 
    for name in ${!time[@]}
    do
-      newtime[$name]=$( processfeed "$name" "${time[$name]}" "${url[$name]}" )
+      result=$( processfeed "$name" "${time[$name]}" "${url[$name]}" )
+      if test $? -eq 0
+      then
+         newtime[$name]=$( processfeed "$name" "${time[$name]}" "${url[$name]}" )
+      fi
    done
 
    rewriteconfig
