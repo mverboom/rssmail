@@ -16,7 +16,11 @@ processfeed() {
    name="$1"
    lasttime=$2
    url="$3"
+   tmpfile=$( tempfile )
    maxtime=$lasttime
+   wget -q -4 --timeout=10 -O $tmpfile "$url" || { echo "Error retrieving $url."; rm -f $tmpfile; return 1; }
+   cat $tmpfile | xmlstarlet sel -t -m "//item" -o "titl:" -v "title" --nl -o "link:" -v "link" --nl -o "date:" -v "pubDate" --nl -o "desc:" -v "description" --nl > $tmpfile.parsed 2> /dev/null || { echo "Error parsing feed from $url."; rm -f $tmpfile $tmpfile.parsed; return 1; }
+   rm -f $tmpfile
    while read line
    do
       fn=${line/:*/}
@@ -37,7 +41,8 @@ processfeed() {
             fi
          ;;
       esac
-   done < <(wget -q -O - "$url" | xmlstarlet sel -t -m "//item" -o "titl:" -v "title" --nl -o "link:" -v "link" --nl -o "date:" -v "pubDate" --nl -o "desc:" -v "description" --nl)
+   done < $tmpfile.parsed
+   rm -f $tmpfile.parsed
    echo $maxtime
 }
 
