@@ -1,4 +1,4 @@
-# rssfeed
+# rssmail
 
 The purpose of this script is to send an email for each new item found in an RSS feed.
 In my main workflow email is very important. I mainly use this script to follow a number
