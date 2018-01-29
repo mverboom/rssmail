@@ -11,6 +11,9 @@
 # v Handle empty date field (set to today)
 # * Write man page
 # * multiple default config file locations
+# * configurable path to xmlstarlet
+
+XML=xmlstarlet
 
 processfeed() {
    name="$1"
@@ -19,7 +22,14 @@ processfeed() {
    tmpfile=$( tempfile )
    maxtime=$lasttime
    wget -q -4 --timeout=10 -O $tmpfile "$url" || { >&2 echo "Error retrieving $url."; rm -f $tmpfile; return 1; }
-   xmlstarlet sel -t -m "//item" -o "titl:" -v "title" --nl -o "link:" -v "link" --nl -o "date:" -v "pubDate" --nl -o "desc:" -v "description" --nl < $tmpfile > $tmpfile.parsed 2> /dev/null || { >&2 echo "Error parsing feed from $url."; rm -f $tmpfile $tmpfile.parsed; return 1; }
+   #xmlstarlet sel -t -m "//item" -o "titl:" -v "title" --nl -o "link:" -v "link" --nl -o "date:" -v "pubDate" --nl -o "desc:" -v "description" --nl < $tmpfile > $tmpfile.parsed 2> /dev/null || { >&2 echo "Error parsing feed from $url."; rm -f $tmpfile $tmpfile.parsed; return 1; }
+   # First try standard parse
+   $XML sel -t -m "//item" --var linebreak -n --break -o "titl:" -v "title" -n -o "link:" -v "link" -n -o "date:" -v "pubDate" -n -o "desc:" -v "translate(description, \$linebreak, '^')" -n $tmpfile 2> /dev/null > $tmpfile.parsed
+   if test $? -ne 0
+   then
+      $XML sel -N purl="http://purl.org/rss/1.0/" -N dc="http://purl.org/dc/elements/1.1/" -t -m "//rdf:RDF/purl:item" --var linebreak -n --break -o "titl:" -v purl:title -n -o "link:" -v purl:link -n -o "date:" -v dc:date -n -o "desc:" -v "translate(purl:description, \$linebreak, '^')" -n $tmpfile 2> /dev/null > $tmpfile.parsed
+   fi
+   test $? -ne 0 && { >&2 echo "Error parsing feed from $url."; rm -f $tmpfile $tmpfile.parsed; return 1; }
    rm -f $tmpfile
    while read line
    do
@@ -36,7 +46,7 @@ processfeed() {
             desc="$data"
             if test $lasttime -lt $time
             then
-               echo -e "<html><body><b>$title</b><p>$desc<p><a href=$link>$link</a></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r $mailfrom -s "$name: $title" $mailto
+               echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r $mailfrom -s "$name: $title" $mailto
                test $time -gt $maxtime && maxtime=$time
             fi
          ;;
