@@ -55,6 +55,7 @@ readconfig() {
    test -f ~/.rssmail.cfg || { echo "~/.rssmail.cfg doesn't exist"; exit 1; }
 
    declare -g -A newtime time url
+   XML=xml
 
    items=0
    while read line
