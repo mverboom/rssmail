@@ -8,6 +8,8 @@
 # * Commandline parsing with override option for config file
 # * multiple default config file locations
 
+CONFIG="$HOME/.rssmail.cfg /etc/rssmail.cfg"
+
 processfeed() {
    name="$1"
    lasttime=$2
@@ -50,7 +52,13 @@ processfeed() {
 }
 
 readconfig() {
-   test -f ~/.rssmail.cfg || { echo "~/.rssmail.cfg doesn't exist"; exit 1; }
+   cfg=""
+   for file in $CONFIG
+   do
+      test -f $file && { cfg=$file; break; }
+   done
+   test "$cfg" = "" && { echo "No valid config file found ($CONFIG)."; exit 1; }
+   exit 1
 
    declare -g -A newtime time url
    XML=xmlstarlet
@@ -100,7 +108,6 @@ readconfig() {
 }
 
 rewriteconfig() {
-
    while read line
    do
       if test "$line" != "" -a "${line:0:1}" != "#"
@@ -140,6 +147,7 @@ sanitycheck() {
 }
 
 main() {
+   parseoptions
    readconfig
    sanitycheck
 
