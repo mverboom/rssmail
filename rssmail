@@ -6,9 +6,7 @@
 #
 # ToDo:
 # * Commandline parsing with override option for config file
-# * Write man page
 # * multiple default config file locations
-# * configurable path to xmlstarlet
 
 processfeed() {
    name="$1"
@@ -55,7 +53,7 @@ readconfig() {
    test -f ~/.rssmail.cfg || { echo "~/.rssmail.cfg doesn't exist"; exit 1; }
 
    declare -g -A newtime time url
-   XML=xml
+   XML=xmlstarlet
 
    items=0
    while read line

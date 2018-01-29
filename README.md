@@ -38,6 +38,15 @@ Send mail as user rssfeed:
 
 `email-from=rssfeed@example.com`
 
+**xmlstarlet**
+
+This specifies the command name for the xmlstarlet package. When not
+defined it defaults to xmlstart.
+
+Override the command to xml:
+
+`xmlstartlet=xml`
+
 ### Feeds
 
 It is possible to specify 1 or more feeds in the configuration file. Each line contains
