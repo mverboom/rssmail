@@ -58,7 +58,6 @@ readconfig() {
       test -f $file && { cfg=$file; break; }
    done
    test "$cfg" = "" && { echo "No valid config file found ($CONFIG)."; exit 1; }
-   exit 1
 
    declare -g -A newtime time url
    XML=xmlstarlet
@@ -101,7 +100,7 @@ readconfig() {
          ;;
          esac
       fi
-   done < ~/.rssmail.cfg
+   done < $cfg
    test $items -eq 0 && { echo "No feeds found to process."; exit 1; }
    test "$mailto" = "" && { echo "No email-to defined."; exit 1; }
    test "$mailfrom" = "" && { echo "No email-from defined."; exit 1; }
@@ -132,8 +131,8 @@ rewriteconfig() {
       else
          echo "$line"
       fi
-   done < ~/.rssmail.cfg > ~/.rssmail.cfg.new
-   mv ~/.rssmail.cfg.new ~/.rssmail.cfg
+   done < $cfg > $cfg.new
+   mv $cfg.new $cfg
 }
 
 sanitycheck() {
@@ -147,7 +146,6 @@ sanitycheck() {
 }
 
 main() {
-   parseoptions
    readconfig
    sanitycheck
 
