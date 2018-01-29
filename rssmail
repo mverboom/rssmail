@@ -145,7 +145,38 @@ sanitycheck() {
    test $ok -ne 1 && exit
 }
 
+usage() {
+   echo "Usage: $0 [OPTION]"
+   echo "Check all configured RSS feeds for updates and mail them."
+   echo
+   echo "Arguments:"
+   echo "  -c <file>, --config <file>    Use specific config file."
+   echo "  -h, --help                    Show this usage information."
+   exit 1
+}
+
+parseoptions() {
+   while test "$1" != ""
+   do
+      case "$1" in
+         "-c"|"--config")
+            CONFIG=$2
+            shift
+         ;;
+         "-h"|"--help")
+            usage
+         ;;
+
+         *)
+            usage
+         ;;
+      esac
+      shift
+   done
+}
+
 main() {
+   parseoptions "$@"
    readconfig
    sanitycheck
 
@@ -161,4 +192,4 @@ main() {
    rewriteconfig
 }
 
-main
+main "$@"
