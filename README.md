@@ -4,12 +4,28 @@ The purpose of this script is to send an email for each new item found in an RSS
 In my main workflow email is very important. I mainly use this script to follow a number
 of security related RSS feeds and recieve email alerts when new issue's are published.
 
+## Commandline options
+
+The following commandline options are available:
+
+`-h, --help`
+
+Shows a brief usage message.
+
+`-c <file>, --config <file>`
+
+Overrides the default confgifile locations.
+
 ## Configuration
 
-The script requires a configuration file which is expected in the homedirectory of the
-user running the script:
+The configuration file is searched for at the locations below in the specified 
+order. As soon as a configuration file is found, searching is stopped.
 
 `~/.rssmail.cfg`
+`/etc/rssmail.cfg`
+
+These locations are not checked when the configuration file location is 
+overridden from the commandline.
 
 Lines in the configuration file that are empty or start with a # will be ignored. So it
 is possible to add comments in the file.
