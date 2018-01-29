@@ -4,9 +4,6 @@
 #
 # Process rss feeds and send a mail for each new item.
 #
-# ToDo:
-# * Commandline parsing with override option for config file
-# * multiple default config file locations
 
 CONFIG="$HOME/.rssmail.cfg /etc/rssmail.cfg"
 
