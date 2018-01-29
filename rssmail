@@ -5,15 +5,10 @@
 # Process rss feeds and send a mail for each new item.
 #
 # ToDo:
-# v Convert epoch timestamps in config to readable dates
 # * Commandline parsing with override option for config file
-# v HTML mail
-# v Handle empty date field (set to today)
 # * Write man page
 # * multiple default config file locations
 # * configurable path to xmlstarlet
-
-XML=xmlstarlet
 
 processfeed() {
    name="$1"
@@ -90,6 +85,9 @@ readconfig() {
          "email-from")
             mailfrom="$data"
          ;;
+         "xmlstarlet")
+            XML="$data"
+         ;;
          *)
             echo "Error, unknown config line: $line"
             exit 1
@@ -143,8 +141,8 @@ sanitycheck() {
 }
 
 main() {
-   sanitycheck
    readconfig
+   sanitycheck
 
    for name in ${!time[@]}
    do
