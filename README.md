@@ -63,6 +63,25 @@ Override the command to xml:
 
 `xmlstartlet=xml`
 
+**proxy**
+
+This specifies a proxy to use when retrieving the RSS feed. Without this
+option no specific proxy is set, but any proxy defined in the environment
+will not be removed.
+
+Set proxy to wwwproxy with port 3128
+
+`proxy=wwwproxy:3129`
+
+**ipv4only**
+
+This forces the RSS feed URL's to be retrieved over IPv4 only. This option
+does not require an argument.
+
+Force connection over IPv4
+
+`ipv4only`
+
 ### Feeds
 
 It is possible to specify 1 or more feeds in the configuration file. Each line contains

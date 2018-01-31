@@ -13,7 +13,8 @@ processfeed() {
    url="$3"
    tmpfile=$( tempfile )
    maxtime=$lasttime
-   wget -q -4 --timeout=10 -O $tmpfile "$url" || { >&2 echo "Error retrieving $url."; rm -f $tmpfile; return 1; }
+   WGETFLAGS="$WGETFLAGS -q --timeout=10"
+   wget $WGETFLAGS -O $tmpfile "$url" || { >&2 echo "Error retrieving $url."; rm -f $tmpfile; return 1; }
    # First try standard parse
    $XML sel -t -m "//item" --var linebreak -n --break -o "titl:" -v "title" -n -o "link:" -v "link" -n -o "date:" -v "pubDate" -n -o "desc:" -v "translate(description, \$linebreak, '^')" -n $tmpfile 2> /dev/null > $tmpfile.parsed
    # Next try parse with different XML name spaces
@@ -38,7 +39,7 @@ processfeed() {
             desc="$data"
             if test $lasttime -lt $time
             then
-               echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r $mailfrom -s "$name: $title" $mailto
+               echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @$time "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r $mailfrom -s "$name: $title" $mailto
                test $time -gt $maxtime && maxtime=$time
             fi
          ;;
@@ -91,9 +92,15 @@ readconfig() {
          "xmlstarlet")
             XML="$data"
          ;;
+         "proxy")
+            export http_proxy=$data
+            export https_proxy=$data
+         ;;
+         "ipv4only")
+            WGETFLAGS="-4"
+         ;;
          *)
-            echo "Error, unknown config line: $line"
-            exit 1
+             >&2 echo "Unknown line in config file, skipping: $line"
          ;;
          esac
       fi
