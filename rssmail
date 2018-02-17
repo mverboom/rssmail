@@ -154,28 +154,29 @@ usage() {
    echo "Check all configured RSS feeds for updates and mail them."
    echo
    echo "Arguments:"
-   echo "  -c <file>, --config <file>    Use specific config file."
-   echo "  -h, --help                    Show this usage information."
+   echo "  -c <file>       Use specific config file."
+   echo "  -h              Show this usage information."
    exit 1
 }
 
 parseoptions() {
-   while test "$1" != ""
-   do
-      case "$1" in
-         "-c"|"--config")
-            CONFIG=$2
-            shift
+   while getopts :c:h opt; do
+      case $opt in
+         c)
+            CONFIG=$OPTARG
          ;;
-         "-h"|"--help")
+         h)
             usage
          ;;
-
-         *)
+         \?)
+            echo "Unknown option: -$OPTARG"
+            usage
+         ;;
+         :)
+            echo "Option -$OPTARG requires argument"
             usage
          ;;
       esac
-      shift
    done
 }
 
