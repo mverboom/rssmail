@@ -7,6 +7,10 @@
 
 CONFIG="$HOME/.rssmail.cfg /etc/rssmail.cfg"
 
+kanboard() {
+   curl -s -u "jsonrpc:$kanboardapikey" -d @- $kanboardapi
+}
+
 processfeed() {
    name="$1"
    lasttime=$2
@@ -29,7 +33,7 @@ processfeed() {
       fn=${line/:*/}
       data=${line/????:/}
       case "$fn" in
-         "date") time=$(date -d "$data" "+%s")
+         "date") time=$(date -d "$data" "+%s") || echo "Feed: $fn, error converting date format. ($line)"
          ;;
          "titl") title="$data"
          ;;
@@ -39,7 +43,12 @@ processfeed() {
             desc="$data"
             if test "$lasttime" -lt "$time"
             then
-               echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "$mailfrom" -s "$name: $title" "$mailto"
+               if test $domail -eq 1; then
+                  echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "$mailfrom" -s "$name: $title" "$mailto"
+               fi
+               if test $dokanboard -eq 1; then
+                  echo '{ "jsonrpc": "2.0", "method": "createTask", "id": 2134420212, "params": { "title": "'$name: $title'", "project_id": '$kbprid', "description": "#Description\n\n'$desc'\n\n#Link\n\n'$link'" } }' | kanboard | jq -r '.result'
+               fi
                test "$time" -gt "$maxtime" && maxtime=$time
             fi
          ;;
@@ -99,6 +108,15 @@ readconfig() {
          "ipv4only")
             WGETFLAGS="-4"
          ;;
+         "kanboardapikey")
+            kanboardapikey="$data"
+         ;;
+         "kanboardapi")
+            kanboardapi="$data"
+         ;;
+         "kanboardproject")
+            kanboardproject="$data"
+         ;;
          *)
              >&2 echo "Unknown line in config file, skipping: $line"
          ;;
@@ -142,7 +160,7 @@ rewriteconfig() {
 sanitycheck() {
    ok=1
 
-   for util in xmlstarlet sed mail
+   for util in xmlstarlet sed mail curl jq
    do
       ! which $util > /dev/null 2>&1 && { echo "$util not found, is required."; ok=0; }
    done
@@ -154,36 +172,48 @@ usage() {
    echo "Check all configured RSS feeds for updates and mail them."
    echo
    echo "Arguments:"
+   echo "  -m              Send rss items through email."
+   echo "  -k              Insert rss items into kaboard."
    echo "  -c <file>       Use specific config file."
    echo "  -h              Show this usage information."
    exit 1
 }
 
 parseoptions() {
-   while getopts :c:h opt; do
+   domail=0
+   dokanboard=0
+
+   while getopts :c:hkm opt; do
       case $opt in
-         c)
-            CONFIG=$OPTARG
+         k) dokanboard=1
          ;;
-         h)
-            usage
+         m) domail=1
          ;;
-         \?)
-            echo "Unknown option: -$OPTARG"
-            usage
+         c) CONFIG=$OPTARG
          ;;
-         :)
-            echo "Option -$OPTARG requires argument"
+         h) usage
+         ;;
+         \?) echo "Unknown option: -$OPTARG"
+             usage
+         ;;
+         :) echo "Option -$OPTARG requires argument"
             usage
          ;;
       esac
    done
+   test $domail -eq 0 -a $dokanboard -eq 0 && { echo "Specify an option."; usage; }
+
 }
 
 main() {
    parseoptions "$@"
    readconfig
    sanitycheck
+
+   if test $dokanboard -eq 1; then
+      kbprid=$(echo '{"jsonrpc": "2.0", "method": "getProjectByName", "id": 1, "params": { "name": "'$kanboardproject'" }}' | kanboard | jq -r '.result.id')
+      test "$kbprid" = "null" && { echo "Kanboard project $kanboardproject not found."; exit 1; }
+   fi
 
    for name in "${!time[@]}"
    do
