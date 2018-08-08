@@ -15,7 +15,10 @@ processfeed() {
    name="$1"
    lasttime=$2
    url="$3"
+
    tmpfile=$( tempfile )
+
+   new=0
    maxtime=$lasttime
    WGETFLAGS="$WGETFLAGS -q --timeout=10"
    wget $WGETFLAGS -O "$tmpfile" "$url" || { >&2 echo "Error retrieving $url."; rm -f "$tmpfile"; return 1; }
@@ -33,7 +36,7 @@ processfeed() {
       fn=${line/:*/}
       data=${line/????:/}
       case "$fn" in
-         "date") time=$(date -d "$data" "+%s") || echo "Feed: $fn, error converting date format. ($line)"
+         "date") time=$(date -d "$data" "+%s") || { >&2 echo "Feed: $fn, error converting date format. ($line)"; }
          ;;
          "titl") title="$data"
          ;;
@@ -43,11 +46,13 @@ processfeed() {
             desc="$data"
             if test "$lasttime" -lt "$time"
             then
+               new=$(($new + 1))
                if test $domail -eq 1; then
                   echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "$mailfrom" -s "$name: $title" "$mailto"
                fi
                if test $dokanboard -eq 1; then
-                  echo '{ "jsonrpc": "2.0", "method": "createTask", "id": 2134420212, "params": { "title": "'$name: $title'", "project_id": '$kbprid', "description": "#Description\n\n'$desc'\n\n#Link\n\n'$link'" } }' | kanboard | jq -r '.result'
+                  res=$(echo '{ "jsonrpc": "2.0", "method": "createTask", "id": 2134420212, "params": { "title": "'$name: $title'", "project_id": '$kbprid', "description": "#Description\n\n'$desc'\n\n#Link\n\n'$link'" } }' | kanboard | jq -r '.result')
+                  test "$res" = "null" && { >&2 echo "Feed: ($res)error adding task to kanboard."; }
                fi
                test "$time" -gt "$maxtime" && maxtime=$time
             fi
@@ -56,6 +61,7 @@ processfeed() {
    done < "$tmpfile.parsed"
    rm -f "$tmpfile.parsed"
    echo "$maxtime"
+   return $new
 }
 
 readconfig() {
@@ -174,6 +180,7 @@ usage() {
    echo "Arguments:"
    echo "  -m              Send rss items through email."
    echo "  -k              Insert rss items into kaboard."
+   echo "  -K              Insert rss items into kanboard and mail when items are added."
    echo "  -c <file>       Use specific config file."
    echo "  -h              Show this usage information."
    exit 1
@@ -183,9 +190,13 @@ parseoptions() {
    domail=0
    dokanboard=0
 
-   while getopts :c:hkm opt; do
+   while getopts :c:hkKm opt; do
       case $opt in
          k) dokanboard=1
+            dokanmail=0
+         ;;
+         K) dokanboard=1
+            dokanmail=1
          ;;
          m) domail=1
          ;;
@@ -215,14 +226,17 @@ main() {
       test "$kbprid" = "null" && { echo "Kanboard project $kanboardproject not found."; exit 1; }
    fi
 
+   items=0
    for name in "${!time[@]}"
    do
       result=$( processfeed "$name" "${time[$name]}" "${url[$name]}" )
+      items=$(( $items + $? ))
       if test $? -eq 0
       then
          newtime[$name]=$result
       fi
    done
+   test $items -gt 0 -a $dokanmail -eq 1 && { echo -e "There are $items itmes added to kanboard $kanboardproject." | mail -r "$mailfrom" -s "rssmail: $items items added to kanboard" "$mailto"; }
 
    rewriteconfig
 }

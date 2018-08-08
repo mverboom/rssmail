@@ -8,13 +8,26 @@ of security related RSS feeds and recieve email alerts when new issue's are publ
 
 The following commandline options are available:
 
-`-h, --help`
+`-h`
 
 Shows a brief usage message.
 
-`-c <file>, --config <file>`
+`-c <file>`
 
 Overrides the default confgifile locations.
+
+`-m`
+
+Send an email for every new item in the feed.
+
+`-k`
+
+Create an item in kanboard for every new item in the feed.
+
+`-K`
+
+Create an item in kanboard for every new item in the feed and if there is one
+or more item, send a mail new items have been created.
 
 ## Configuration
 
@@ -81,6 +94,20 @@ does not require an argument.
 Force connection over IPv4
 
 `ipv4only`
+
+
+**kanboardapikey**
+
+This is the API key in kanboard that needs to be used to use the API.
+
+**kanboardapi**
+
+This is the URL where the kanboard API can be reached.
+
+**kanboardproject**
+
+Name of the kanboard project into which the items need to be created.
+
 
 ### Feeds
 
