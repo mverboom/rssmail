@@ -189,11 +189,11 @@ usage() {
 parseoptions() {
    domail=0
    dokanboard=0
+   dokanmail=0
 
    while getopts :c:hkKm opt; do
       case $opt in
          k) dokanboard=1
-            dokanmail=0
          ;;
          K) dokanboard=1
             dokanmail=1
