@@ -170,6 +170,8 @@ sanitycheck() {
    do
       ! which $util > /dev/null 2>&1 && { echo "$util not found, is required."; ok=0; }
    done
+   test $dokanboard -eq 1 -a "$kanboardproject" = "" -o "$kanboardapikey" = "" -o "$kanboardapi" = "" && { echo "Kanboard insertion is requested, but kanboard configuration key(s) missing."; ok=0; }
+
    test $ok -ne 1 && exit
 }
 
