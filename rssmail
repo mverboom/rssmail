@@ -40,7 +40,7 @@ processfeed() {
          ;;
          "titl") title="$data"
          ;;
-         "link") link="$data"
+         "link") link="${data//&amp;/&}"
          ;;
          "desc")
             desc="$data"
