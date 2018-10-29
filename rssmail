@@ -51,8 +51,8 @@ processfeed() {
                   echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "$mailfrom" -s "$name: $title" "$mailto"
                fi
                if test $dokanboard -eq 1; then
-                  res=$(echo '{ "jsonrpc": "2.0", "method": "createTask", "id": 2134420212, "params": { "title": "'$name: $title'", "project_id": '$kbprid', "description": "#Description\n\n'$desc'\n\n#Link\n\n'$link'" } }' | kanboard | jq -r '.result')
-                  test "$res" = "null" && { >&2 echo "Feed: ($res)error adding task to kanboard."; }
+                  res=$(echo '{ "jsonrpc": "2.0", "method": "createTask", "id": 2134420212, "params": { "title": "'$name: $title'", "project_id": '$kbprid', "description": "#Description\n\n'$desc'\n\n#Link\n\n'$link'" } }' | kanboard | jq -r '.error')
+                  test "$res" = "null" || { >&2 echo "Feed: ($fn) Error adding task to kanboard ($res)."; }
                fi
                test "$time" -gt "$maxtime" && maxtime=$time
             fi
