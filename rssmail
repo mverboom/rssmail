@@ -53,7 +53,7 @@ processfeed() {
                   err=$(( $err + 1 ))
                else
                   if test $domail -eq 1; then
-                     { >&2 echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "$mailfrom" -s "$name: $title" "$mailto"; }
+                     echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "$mailfrom" -s "$name: $title" "$mailto" > /dev/null 2>&1
                      new=$(($new + 1))
                   fi
                   if test $dokanboard -eq 1; then
