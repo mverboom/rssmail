@@ -163,7 +163,7 @@ The pattern is matched using egrep. Compatible patterns can be used.
 
 For example:
 
-`titleexclude=exclude this title|exclude other title`
+`linkexclude=exclude this link|exclude other link`
 
 #### linkinclude (optional)
 
@@ -172,7 +172,7 @@ item. If the pattern matches, the item will be processed.
 
 The pattern is matched using egrep. Compatible patterns can be used.
 
-`linkinclude=include this title|include other title`
+`linkinclude=include this link|include other link`
 
 ## Running
 
