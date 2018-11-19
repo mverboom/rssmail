@@ -2,13 +2,13 @@
 #
 # rssmail
 #
-# Process rss feeds and send a mail for each new item.
+# Process rss feeds and act on new items
 #
 
 CONFIG="$HOME/.rssmail.cfg /etc/rssmail.cfg"
 
 kanboard() {
-   curl -s -u "jsonrpc:$kanboardapikey" -d @- $kanboardapi
+   curl -s -u "jsonrpc:${main[kanboardapikey]}" -d @- ${main[kanboardapi]}
 }
 
 processfeed() {
@@ -17,22 +17,26 @@ processfeed() {
    url="$3"
 
    tmpfile=$( tempfile )
-
    new=0
    err=0
    maxtime=$lasttime
    WGETFLAGS="$WGETFLAGS -q --timeout=10"
+
    wget $WGETFLAGS -O "$tmpfile" "$url" || { >&2 echo "Error retrieving $url."; rm -f "$tmpfile"; return 1; }
+
    # First try standard parse
    $XML sel -t -m "//item" --var linebreak -n --break -o "titl:" -v "title" -n -o "link:" -v "link" -n -o "date:" -v "pubDate" -n -o "desc:" -v "translate(description, \$linebreak, '^')" -n "$tmpfile" 2> /dev/null > "$tmpfile.parsed"
+
    # Next try parse with different XML name spaces
    if test $? -ne 0
    then
       $XML sel -N purl="http://purl.org/rss/1.0/" -N dc="http://purl.org/dc/elements/1.1/" -t -m "//rdf:RDF/purl:item" --var linebreak -n --break -o "titl:" -v purl:title -n -o "link:" -v purl:link -n -o "date:" -v dc:date -n -o "desc:" -v "translate(purl:description, \$linebreak, '^')" -n "$tmpfile" 2> /dev/null > "$tmpfile.parsed"
       test $? -ne 0 && { >&2 echo "Error parsing feed from $url."; rm -f "$tmpfile" "$tmpfile.parsed"; return 1; }
    fi
+
    rm -f "$tmpfile"
    error=0
+   skip=0
    while read -r line
    do
       fn=${line/:*/}
@@ -41,19 +45,37 @@ processfeed() {
          "date") time=$(date -d "$data" "+%s" 2> /dev/null) || { >&2 echo "Feed ($name): Error converting date format. ($data)"; error=1; }
          ;;
          "titl") title="$data"
+            if test "${titleinclude[$name]}" != ""; then
+               title=$(echo "$title" | egrep "${titleexclude[$name]}")
+               test "$title" = "" && skip=1
+            fi
+            if test "${titleexclude[$name]}" != ""; then
+               title=$(echo "$title" | egrep -v "${titleexclude[$name]}")
+               test "$title" = "" && skip=1
+            fi
          ;;
          "link") link="${data//&amp;/&}"
+            if test "${linkinclude[$name]}" != ""; then
+               link=$(echo "$link" | egrep "${linkexclude[$name]}")
+               test "$link" = "" && skip=1
+            fi
+            if test "${linkexclude[$name]}" != ""; then
+               link=$(echo "$link" | egrep -v "${linkexclude[$name]}")
+               test "$link" = "" && skip=1
+            fi
          ;;
          "desc")
             desc="$data"
-            if test "$lasttime" -lt "$time"
+            if test $time -gt $lasttime -a $skip -eq 0
             then
                if test $error -ne 0
                then
                   err=$(( $err + 1 ))
                else
                   if test $domail -eq 1; then
-                     echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "$mailfrom" -s "$name: $title" "$mailto" > /dev/null 2>&1
+                     { >&2 echo "Sending email"; }
+                     echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "${emailfrom[main]}" -s "$name: $title" "${emailto[main]}" > /dev/null 2>&1
+                     test ${PIPESTATUS[1]} -ne 0 && { >&2 echo "Feed ($name): Error sending mail."; error=1; }
                      new=$(($new + 1))
                   fi
                   if test $dokanboard -eq 1; then
@@ -62,7 +84,7 @@ processfeed() {
                      test "$res" = "null" && new=$(($new + 1))
                   fi
                fi
-               test "$time" -gt "$maxtime" && maxtime=$time
+               test $time -gt $maxtime && maxtime=$time
             fi
             error=0
          ;;
@@ -80,105 +102,54 @@ readconfig() {
    done
    test "$cfg" = "" && { echo "No valid config file found ($CONFIG)."; exit 1; }
 
-   declare -g -A newtime time url
-   XML=xmlstarlet
+   # set defaults
+   declare -g -A "xml[main]=xmlstarlet"
 
-   items=0
-   while read -r line
+   while IFS='= ' read var val
    do
-      if test "$line" != "" -a "${line:0:1}" != "#"
-      then
-         id=$( echo "$line" | sed 's/\([^=]*\)=.*/\1/')
-         data=$( echo "$line" | sed 's/[^=]*=\(.*\)/\1/')
-         case "$id" in
-         "feed")
-            items=$(( items + 1 ))
-            name=$( echo "$data" | sed 's/\([^:]*\):.*/\1/' )
-            test "$name" = "" && { echo "Feed has no name."; exit 1; }
-            test "$name" != "${name// /}" && { echo "Feed name $name contains spaces."; exit 1; }
-            stamp=$( echo "$data" | sed 's/[^:]*:\([^@]*\)@.*/\1/' )
-            if test "$stamp" = ""
-            then
-               time[$name]=$( date "+%s" )
-            else
-               time[$name]=$( date -d "$stamp" "+%s" )
-            fi
-            url[$name]=$( echo "$data" | sed 's/[^:]*:[^@]*@\(.*\)/\1/' )
-            test "${url[$name]}" = "" && { echo "Feed $name has no url."; exit 1; }
-         ;;
-         "email-to")
-            mailto="$data"
-         ;;
-         "email-from")
-            mailfrom="$data"
-         ;;
-         "xmlstarlet")
-            XML="$data"
-         ;;
-         "proxy")
-            export http_proxy=$data
-            export https_proxy=$data
-         ;;
-         "ipv4only")
-            WGETFLAGS="-4"
-         ;;
-         "kanboardapikey")
-            kanboardapikey="$data"
-         ;;
-         "kanboardapi")
-            kanboardapi="$data"
-         ;;
-         "kanboardproject")
-            kanboardproject="$data"
-         ;;
-         *)
-             >&2 echo "Unknown line in config file, skipping: $line"
-         ;;
-         esac
+      if test "${var:0:1}" != "#"; then
+         if [[ $var == \[*] ]]
+         then
+             section=${var:1:-1}
+         elif [[ $val ]]
+         then
+             declare -g -A "$var[$section]=$val"
+         fi
       fi
-   done < "$cfg"
-   test $items -eq 0 && { echo "No feeds found to process."; exit 1; }
-   test "$mailto" = "" && { echo "No email-to defined."; exit 1; }
-   test "$mailfrom" = "" && { echo "No email-from defined."; exit 1; }
+   done < $cfg
+
+   test "${ipv4only[main]}" && WGETFLAGS="-4"
+   test "${prox[main]}" && { export http_proxy=${proxy[main]}; export https_proxy=${proxy[main]}; }
+   XML=${xml[main]}
 }
 
 rewriteconfig() {
    while read -r line
    do
-      if test "$line" != "" -a "${line:0:1}" != "#"
-      then
-         id=$( echo "$line" | sed 's/\([^=]*\)=.*/\1/')
-         data=$( echo "$line" | sed 's/[^=]*=\(.*\)/\1/')
-         case "$id" in
-         "feed")
-            name=$( echo "$data" | sed 's/\([^:]*\):.*/\1/' )
-            if test "${newtime[$name]}" != ""
-            then
-               stamp=$( date -d "@${newtime[$name]}" "+%Y%m%d %H:%M:%S" )
-            else
-               stamp=""
-            fi
-            echo "feed=$name:$stamp@${url[$name]}"
-         ;;
-         *)
-            echo "$line"
-         ;;
-         esac
+      IFS='= ' read var val < <(echo $line)
+      if [[ $var == \[*] ]]; then
+          section=${var:1:-1}
+      fi
+      if test "$val" -a "$var" = "timestamp" -a "${newtime[$section]}" != ""; then
+         stamp=$( date -d "@${newtime[$section]}" "+%Y%m%d %H:%M:%S" )
+         echo "timestamp=$stamp"
       else
          echo "$line"
       fi
    done < "$cfg" > "$cfg.new"
-   mv "$cfg.new" "$cfg"
+   test -f "$cfg.new" && mv "$cfg.new" "$cfg"
 }
 
 sanitycheck() {
    ok=1
 
-   for util in xmlstarlet sed mail curl jq
+   for util in xmlstarlet sed mail curl jq egrep
    do
       ! which $util > /dev/null 2>&1 && { echo "$util not found, is required."; ok=0; }
    done
-   test $dokanboard -eq 1 && test "$kanboardproject" = "" -o "$kanboardapikey" = "" -o "$kanboardapi" = "" && { echo "Kanboard insertion is requested, but kanboard configuration key(s) missing."; ok=0; }
+   test $dokanboard -eq 1 && test "${kanboardproject[main]}" = "" -o "${kanboardapikey[main]}" = "" -o "${kanboardapi[main]}" = "" && { echo "Kanboard insertion is requested, but kanboard configuration key(s) missing."; ok=0; }
+
+   test $domail -eq 1 && test "${emailto[main]}" = "" -o "${emailfrom[main]}" = "" && { echo "Email sending reqested, but mail configuration key(s) missing."; ok=1; }
 
    test $ok -ne 1 && exit
 }
@@ -222,7 +193,7 @@ parseoptions() {
          ;;
       esac
    done
-   test $domail -eq 0 -a $dokanboard -eq 0 && { echo "Specify an option."; usage; }
+   test $domail -eq 0 -a $dokanboard -eq 0 && { echo "Specify an action."; usage; }
 
 }
 
@@ -232,22 +203,27 @@ main() {
    sanitycheck
 
    if test $dokanboard -eq 1; then
-      kbprid=$(echo '{"jsonrpc": "2.0", "method": "getProjectByName", "id": 1, "params": { "name": "'$kanboardproject'" }}' | kanboard | jq -r '.result.id')
+      kbprid=$(echo '{"jsonrpc": "2.0", "method": "getProjectByName", "id": 1, "params": { "name": "'${kanboardproject[main]}'" }}' | kanboard | jq -r '.result.id')
       test "$kbprid" = "null" && { echo "Kanboard project $kanboardproject not found."; exit 1; }
    fi
 
    itemsok=0
    itemserr=0
-   for name in "${!time[@]}"
+   for name in ${!timestamp[@]}
    do
-      read maxtime new err < <(processfeed "$name" "${time[$name]}" "${url[$name]}" )
-      if "$maxtime" != ""; then
+      if test "${timestamp[$name]}" = ""; then
+         timestamp[$name]=$( date "+%s" )
+      else
+         timestamp[$name]=$( date -d "${timestamp[$name]}" "+%s" )
+      fi
+      read maxtime new err < <(processfeed "$name" "${timestamp[$name]}" "${url[$name]}" )
+      if test "$maxtime" != ""; then
          itemsok=$(( $itemsok + $new ))
          itemserr=$(( $itemserr + $err ))
-         newtime[$name]=$maxtime
+         declare -g -A newtime[$name]=$maxtime
       fi
    done
-   test $(( $itemsok + $itemserr )) -gt 0 -a $dokanmail -eq 1 && { ( test $itemsok -gt 0 && echo -e "There are $itemsok items added to kanboard $kanboardproject."; test $itemserr -gt 0 && echo -e "There are $itemserr items that failed to parse." ) | mail -r "$mailfrom" -s "rssmail: $itemsok items added to kanboard" "$mailto"; }
+   test $(( $itemsok + $itemserr )) -gt 0 -a $dokanmail -eq 1 && { ( test $itemsok -gt 0 && echo -e "There are $itemsok items added to kanboard $kanboardproject."; test $itemserr -gt 0 && echo -e "There are $itemserr items that failed to parse." ) | mail -r "${mailfrom[main]}" -s "rssmail: $itemsok items added to kanboard" "${mailto[main]}"; }
 
    rewriteconfig
 }

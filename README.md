@@ -40,32 +40,34 @@ order. As soon as a configuration file is found, searching is stopped.
 These locations are not checked when the configuration file location is 
 overridden from the commandline.
 
-Lines in the configuration file that are empty or start with a # will be ignored. So it
-is possible to add comments in the file.
+Lines in the configuration file that are empty or start with a # will be ignored. So it is possible to add comments in the file.
 
-The configuration file has generic settings and feeds configuration.
+The configuration file has a .ini style format. There is a main section
+which specifies gobal settings and a section per configured feed.
 
 ### Generic settings
 
-**email-to**
+These settings should be set in section [main].
+
+**emailto**
 
 The specifies 1 or more email (comma seperated) email addresses where output is sent to.
 
 For example, send mail to admin user:
 
-`email-to=admin@example.com`
+`emailto=admin@example.com`
 
 Send mail to Alice and Bob:
 
-`email-to=alice@example.com,bob@example.com`
+`emailto=alice@example.com,bob@example.com`
 
-**email-from**
+**emailfrom**
 
 This specifies the sending email address. Can be useful for filtering.
 
 Send mail as user rssfeed:
 
-`email-from=rssfeed@example.com`
+`emailfrom=rssfeed@example.com`
 
 **xmlstarlet**
 
@@ -84,17 +86,15 @@ will not be removed.
 
 Set proxy to wwwproxy with port 3128
 
-`proxy=wwwproxy:3129`
+`proxy=wwwproxy:3128`
 
 **ipv4only**
 
-This forces the RSS feed URL's to be retrieved over IPv4 only. This option
-does not require an argument.
+This forces the RSS feed URL's to be retrieved over IPv4 only.
 
 Force connection over IPv4
 
-`ipv4only`
-
+`ipv4only=1`
 
 **kanboardapikey**
 
@@ -108,42 +108,82 @@ This is the URL where the kanboard API can be reached.
 
 Name of the kanboard project into which the items need to be created.
 
-
 ### Feeds
 
-It is possible to specify 1 or more feeds in the configuration file. Each line contains
-1 feed configuration and should always start with the configuration item feed.
+It is possible to specify 1 or more feeds in the configuration file. Each feed
+requires its own section.
 
-Each feed line contains 3 elements:
-* Feed name (is used in the subject of the email)
-* Date and time of last item
-* URL
+The section name is the shorthand name for the feed. The name can not contain
+spaces.
 
-The items are seperated like this:
+Below are the elements that can be defined for a feed.
 
-**\<feed name\>:\<timestamp\>@\<url\>**
+#### timestamp (mandatory)
 
-The feed name should not contain spaces.
+When initially specifying a feed, this field should be defined empty:
 
-When specifying a new feed, the timestamp can be ommited. This will set the feed to the
-latest item. Any item published in the feed will not be mailed.
+`timestamp=`
 
-An example feed line for the EFF Action Center feed:
+It will be updated automatically when the feed is processed.
 
-`feed=EFF action:@https://act.eff.org/action.atom`
+#### url (mandatory)
+
+This is the url of the RSS feed that needs to be parsed.
+
+For example:
+
+`url=https://act.eff.org/action.atom`
+
+#### titleexclude (optional)
+
+This option specifies a pattern that will be applied to the title of a feed
+item. If the pattern matches, the item will not be processed.
+
+The pattern is matched using egrep. Compatible patterns can be used.
+
+For example:
+
+`titleexclude=exclude this title|exclude other title`
+
+#### titleinclude (optional)
+
+This option specifies a pattern that will be applied to the title of a feed
+item. If the pattern matches, the item will be processed.
+
+The pattern is matched using egrep. Compatible patterns can be used.
+
+`titleinclude=include this title|include other title`
+
+#### linkexclude (optional)
+
+This option specifies a pattern that will be applied to the link of a feed
+item. If the pattern matches, the item will not be processed.
+
+The pattern is matched using egrep. Compatible patterns can be used.
+
+For example:
+
+`titleexclude=exclude this title|exclude other title`
+
+#### linkinclude (optional)
+
+This option specifies a pattern that will be applied to the link of a feed
+item. If the pattern matches, the item will be processed.
+
+The pattern is matched using egrep. Compatible patterns can be used.
+
+`linkinclude=include this title|include other title`
 
 ## Running
 
-The script has a couple of dependancies. The script checks if these are available:
-
-* xmlstarlet
-* sed
-* mail
+The script has a couple of dependancies. The script checks if these are available.
 
 The script can be started without arguments:
 
 `rssmail`
 
-It is most useful to start it from cron, for example every hour, 10 past the hour:
+It wil show help output.
 
-`10 * * * * /home/user/bin/rssmail`
+It is most useful to start it from cron. For example every hour, 10 past the hour send email for all matches:
+
+`10 * * * * /home/user/bin/rssmail -m`
