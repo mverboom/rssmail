@@ -73,7 +73,6 @@ processfeed() {
                   err=$(( $err + 1 ))
                else
                   if test $domail -eq 1; then
-                     { >&2 echo "Sending email"; }
                      echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "${emailfrom[main]}" -s "$name: $title" "${emailto[main]}" > /dev/null 2>&1
                      test ${PIPESTATUS[1]} -ne 0 && { >&2 echo "Feed ($name): Error sending mail."; error=1; }
                      new=$(($new + 1))
