@@ -56,7 +56,7 @@ processfeed() {
          ;;
          "link") link="${data//&amp;/&}"
             if test "${linkinclude[$name]}" != ""; then
-               link=$(echo "$link" | egrep "${linkexclude[$name]}")
+               link=$(echo "$link" | egrep "${linkinclude[$name]}")
                test "$link" = "" && skip=1
             fi
             if test "${linkexclude[$name]}" != ""; then
