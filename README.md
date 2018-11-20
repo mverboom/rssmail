@@ -29,6 +29,16 @@ Create an item in kanboard for every new item in the feed.
 Create an item in kanboard for every new item in the feed and if there is one
 or more item, send a mail new items have been created.
 
+`-d`
+
+Increase debugging level. Debug messages are written to stderr, prepended by a
+timestamp and the logging level. This can be used for logging. Levels are:
+
+* 1 Basic flow of actions
+* 2 More detailed flow of actions
+* 3 Show item filtering decisions
+* 4 Show config reading and writing
+
 ## Configuration
 
 The configuration file is searched for at the locations below in the specified 

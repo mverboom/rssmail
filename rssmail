@@ -6,6 +6,7 @@
 #
 
 CONFIG="$HOME/.rssmail.cfg /etc/rssmail.cfg"
+DEBUG=0
 
 kanboard() {
    curl -s -u "jsonrpc:${kanboardapikey[main]}" -d @- ${kanboardapi[main]}
@@ -21,6 +22,8 @@ processfeed() {
    err=0
    maxtime=$lasttime
    WGETFLAGS="$WGETFLAGS -q --timeout=10"
+
+   debug 2 "Processing feed $name (last time $lasttime)"
 
    wget $WGETFLAGS -O "$tmpfile" "$url" || { >&2 echo "Error retrieving $url."; rm -f "$tmpfile"; return 1; }
 
@@ -47,21 +50,21 @@ processfeed() {
          "titl") title="$data"
             if test "${titleinclude[$name]}" != ""; then
                title=$(echo "$title" | egrep "${titleexclude[$name]}")
-               test "$title" = "" && skip=1
+               test "$title" = "" && { skip=1; debug 3 "titleinclude filtered: $data"; }
             fi
             if test "${titleexclude[$name]}" != ""; then
                title=$(echo "$title" | egrep -v "${titleexclude[$name]}")
-               test "$title" = "" && skip=1
+               test "$title" = "" && { skip=1; debug 3 "titleexclude filtered: $data"; }
             fi
          ;;
          "link") link="${data//&amp;/&}"
             if test "${linkinclude[$name]}" != ""; then
                link=$(echo "$link" | egrep "${linkinclude[$name]}")
-               test "$link" = "" && skip=1
+               test "$link" = "" && { skip=1; debug 3 "linkinclude filtered: $data"; }
             fi
             if test "${linkexclude[$name]}" != ""; then
                link=$(echo "$link" | egrep -v "${linkexclude[$name]}")
-               test "$link" = "" && skip=1
+               test "$link" = "" && { skip=1; debug 3 "linkexclude filtered: $data"; }
             fi
          ;;
          "desc")
@@ -73,14 +76,16 @@ processfeed() {
                   err=$(( $err + 1 ))
                else
                   if test $domail -eq 1; then
-                     echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "${emailfrom[main]}" -s "$name: $title" "${emailto[main]}" > /dev/null 2>&1
-                     test ${PIPESTATUS[1]} -ne 0 && { >&2 echo "Feed ($name): Error sending mail."; error=1; }
+                     res=$(mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "${emailfrom[main]}" -s "$name: $title" "${emailto[main]}" 2>&1) < <( echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" )
+                     test $? -ne 0 && { >&2 echo "Feed ($name): Error sending mail ($res)."; error=1; }
                      new=$(($new + 1))
+                     debug 2 "Sending email for new item: $title"
                   fi
                   if test $dokanboard -eq 1; then
                      res=$(echo '{ "jsonrpc": "2.0", "method": "createTask", "id": 2134420212, "params": { "title": "'$name: $title'", "project_id": '$kbprid', "description": "#Description\n\n'$desc'\n\n#Link\n\n'$link'" } }' | kanboard | jq -r '.error')
                      test "$res" != "null" && { >&2 echo "Feed ($name): Error adding task to kanboard (error: $res)."; err=$(($err + 1));}
                      test "$res" = "null" && new=$(($new + 1))
+                     debug 2 "Adding kanboard entry for new item: $title"
                   fi
                fi
                test $time -gt $maxtime && maxtime=$time
@@ -90,6 +95,7 @@ processfeed() {
       esac
    done < <(cat $tmpfile.parsed | tr -d \'\" )
    rm -f "$tmpfile.parsed"
+   debug 2 "Processing done, new: $new, error: $err, new time: $maxtime"
    echo $maxtime $new $err
 }
 
@@ -99,7 +105,8 @@ readconfig() {
    do
       test -f "$file" && { cfg=$file; break; }
    done
-   test "$cfg" = "" && { echo "No valid config file found ($CONFIG)."; exit 1; }
+   test "$cfg" = "" && { >&2 echo "No valid config file found ($CONFIG)."; exit 1; }
+   debug 4 "Selecting config filename: $cfg"
 
    # set defaults
    declare -g -A "xml[main]=xmlstarlet"
@@ -110,19 +117,23 @@ readconfig() {
          if [[ $var == \[*] ]]
          then
              section=${var:1:-1}
+             debug 4 "Found section: $section"
          elif [[ $val ]]
          then
              declare -g -A "$var[$section]=$val"
+             debug 4 "In section $section, found variable var ($var) with value: $val"
          fi
       fi
    done < $cfg
+   debug 4 "Config read complete."
 
-   test "${ipv4only[main]}" && WGETFLAGS="-4"
-   test "${proxy[main]}" && { export http_proxy=${proxy[main]}; export https_proxy=${proxy[main]}; }
+   test "${ipv4only[main]}" && { WGETFLAGS="-4"; debug 4 "IPv4 only variable set."; }
+   test "${proxy[main]}" && { export http_proxy=${proxy[main]}; export https_proxy=${proxy[main]}; debug 4 "Proxy variables set."; }
    XML=${xml[main]}
 }
 
 rewriteconfig() {
+   debug 4 "Rewriting configuration file to temporary file"
    while read -r line
    do
       IFS='= ' read var val < <(echo $line)
@@ -131,12 +142,19 @@ rewriteconfig() {
       fi
       if test "$val" -a "$var" = "timestamp" -a "${newtime[$section]}" != ""; then
          stamp=$( date -d "@${newtime[$section]}" "+%Y%m%d %H:%M:%S" )
-         echo "timestamp=$stamp"
+         if test "$stamp" != "$val"; then
+            echo "timestamp=$stamp"
+            debug 4 "Updated section $section timestamp to $stamp (was $val)"
+         else
+            echo "$line"
+         fi
       else
          echo "$line"
       fi
    done < "$cfg" > "$cfg.new"
+   debug 4 "Renaming temporary file"
    test -f "$cfg.new" && mv "$cfg.new" "$cfg"
+   debug 4 "Rewriting done"
 }
 
 sanitycheck() {
@@ -162,6 +180,7 @@ usage() {
    echo "  -k              Insert rss items into kaboard."
    echo "  -K              Insert rss items into kanboard and mail when items are added."
    echo "  -c <file>       Use specific config file."
+   echo "  -d              Increase debug level"
    echo "  -h              Show this usage information."
    exit 1
 }
@@ -171,7 +190,7 @@ parseoptions() {
    dokanboard=0
    dokanmail=0
 
-   while getopts :c:hkKm opt; do
+   while getopts :c:hkKdm opt; do
       case $opt in
          k) dokanboard=1
          ;;
@@ -181,6 +200,8 @@ parseoptions() {
          m) domail=1
          ;;
          c) CONFIG=$OPTARG
+         ;;
+         d) DEBUG=$(( $DEBUG + 1 ))
          ;;
          h) usage
          ;;
@@ -196,6 +217,10 @@ parseoptions() {
 
 }
 
+debug() {
+   test $DEBUG -ge $1 && { >&2 echo "$(date "+%Y%m%d %H:%M:%S") [$1] $2"; }
+}
+
 main() {
    parseoptions "$@"
    readconfig
@@ -203,13 +228,14 @@ main() {
 
    if test $dokanboard -eq 1; then
       kbprid=$(echo '{"jsonrpc": "2.0", "method": "getProjectByName", "id": 1, "params": { "name": "'${kanboardproject[main]}'" }}' | kanboard | jq -r '.result.id')
-      test "$kbprid" = "null" && { echo "Kanboard project $kanboardproject not found."; exit 1; }
+      test "$kbprid" = "null" && { >&2 echo "Kanboard project $kanboardproject not found."; exit 1; }
    fi
 
    itemsok=0
    itemserr=0
    for name in ${!timestamp[@]}
    do
+      debug 1 "Starting feed $name"
       if test "${timestamp[$name]}" = ""; then
          timestamp[$name]=$( date "+%s" )
       else
@@ -222,6 +248,7 @@ main() {
          declare -g -A newtime[$name]=$maxtime
       fi
    done
+   debug 1 "Feed processing done."
    test $(( $itemsok + $itemserr )) -gt 0 -a $dokanmail -eq 1 && { ( test $itemsok -gt 0 && echo -e "There are $itemsok items added to kanboard $kanboardproject."; test $itemserr -gt 0 && echo -e "There are $itemserr items that failed to parse." ) | mail -r "${emailfrom[main]}" -s "rssmail: $itemsok items added to kanboard" "${emailto[main]}"; }
 
    rewriteconfig
