@@ -222,7 +222,7 @@ main() {
          declare -g -A newtime[$name]=$maxtime
       fi
    done
-   test $(( $itemsok + $itemserr )) -gt 0 -a $dokanmail -eq 1 && { ( test $itemsok -gt 0 && echo -e "There are $itemsok items added to kanboard $kanboardproject."; test $itemserr -gt 0 && echo -e "There are $itemserr items that failed to parse." ) | mail -r "${mailfrom[main]}" -s "rssmail: $itemsok items added to kanboard" "${mailto[main]}"; }
+   test $(( $itemsok + $itemserr )) -gt 0 -a $dokanmail -eq 1 && { ( test $itemsok -gt 0 && echo -e "There are $itemsok items added to kanboard $kanboardproject."; test $itemserr -gt 0 && echo -e "There are $itemserr items that failed to parse." ) | mail -r "${emailfrom[main]}" -s "rssmail: $itemsok items added to kanboard" "${emailto[main]}"; }
 
    rewriteconfig
 }
