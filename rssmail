@@ -8,7 +8,7 @@
 CONFIG="$HOME/.rssmail.cfg /etc/rssmail.cfg"
 
 kanboard() {
-   curl -s -u "jsonrpc:${main[kanboardapikey]}" -d @- ${main[kanboardapi]}
+   curl -s -u "jsonrpc:${kanboardapikey[main]}" -d @- ${kanboardapi[main]}
 }
 
 processfeed() {
@@ -118,7 +118,7 @@ readconfig() {
    done < $cfg
 
    test "${ipv4only[main]}" && WGETFLAGS="-4"
-   test "${prox[main]}" && { export http_proxy=${proxy[main]}; export https_proxy=${proxy[main]}; }
+   test "${proxy[main]}" && { export http_proxy=${proxy[main]}; export https_proxy=${proxy[main]}; }
    XML=${xml[main]}
 }
 
