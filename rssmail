@@ -79,7 +79,7 @@ processfeed() {
                      res=$(mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "${emailfrom[main]}" -s "$name: $title" "${emailto[main]}" 2>&1) < <( echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" )
                      test $? -ne 0 && { >&2 echo "Feed ($name): Error sending mail ($res)."; error=1; }
                      new=$(($new + 1))
-                     debug 2 "Sending email for new item: $title"
+                     debug 2 "Sent email for new item: $title"
                   fi
                   if test $dokanboard -eq 1; then
                      res=$(echo '{ "jsonrpc": "2.0", "method": "createTask", "id": 2134420212, "params": { "title": "'$name: $title'", "project_id": '$kbprid', "description": "#Description\n\n'$desc'\n\n#Link\n\n'$link'" } }' | kanboard | jq -r '.error')
@@ -91,6 +91,7 @@ processfeed() {
                test $time -gt $maxtime && maxtime=$time
             fi
             error=0
+            skip=0
          ;;
       esac
    done < <(cat $tmpfile.parsed | tr -d \'\" )
