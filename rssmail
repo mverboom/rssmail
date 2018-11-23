@@ -25,7 +25,7 @@ processfeed() {
 
    debug 2 "Processing feed $name (last time $lasttime)"
 
-   wget $WGETFLAGS -O "$tmpfile" "$url" || { >&2 echo "Error retrieving $url."; rm -f "$tmpfile"; return 1; }
+   wget $WGETFLAGS -O "$tmpfile" "$url" || { >&2 echo "Feed ($name): Error retrieving $url."; rm -f "$tmpfile"; return 1; }
 
    # First try standard parse
    $XML sel -t -m "//item" --var linebreak -n --break -o "titl:" -v "title" -n -o "link:" -v "link" -n -o "date:" -v "pubDate" -n -o "desc:" -v "translate(description, \$linebreak, '^')" -n "$tmpfile" 2> /dev/null > "$tmpfile.parsed"
