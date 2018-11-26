@@ -49,7 +49,7 @@ processfeed() {
          ;;
          "titl") title="$data"
             if test "${titleinclude[$name]}" != ""; then
-               title=$(echo "$title" | egrep "${titleexclude[$name]}")
+               title=$(echo "$title" | egrep "${titleinclude[$name]}")
                test "$title" = "" && { skip=1; debug 3 "titleinclude filtered: $data"; }
             fi
             if test "${titleexclude[$name]}" != ""; then
