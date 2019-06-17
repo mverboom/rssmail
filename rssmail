@@ -9,18 +9,18 @@ CONFIG="$HOME/.rssmail.cfg /etc/rssmail.cfg"
 DEBUG=0
 
 kanboard() {
-   curl -s -u "jsonrpc:${kanboardapikey[main]}" -d @- ${kanboardapi[main]}
+   curl -s -u "jsonrpc:${kanboardapikey[main]}" -d @- "${kanboardapi[main]}"
 }
 
 processfeed() {
    name="$1"
-   lasttime=$2
+   lasttime="$2"
    url="$3"
 
    tmpfile=$( tempfile )
    new=0
    err=0
-   maxtime=$lasttime
+   maxtime="$lasttime"
    WGETFLAGS="$WGETFLAGS -q --timeout=10"
 
    debug 2 "Processing feed $name (last time $lasttime)"
@@ -31,10 +31,9 @@ processfeed() {
    $XML sel -t -m "//item" --var linebreak -n --break -o "titl:" -v "title" -n -o "link:" -v "link" -n -o "date:" -v "pubDate" -n -o "desc:" -v "translate(description, \$linebreak, '^')" -n "$tmpfile" 2> /dev/null > "$tmpfile.parsed"
 
    # Next try parse with different XML name spaces
-   if test $? -ne 0
-   then
+   if test "$?" -ne "0"; then
       $XML sel -N purl="http://purl.org/rss/1.0/" -N dc="http://purl.org/dc/elements/1.1/" -t -m "//rdf:RDF/purl:item" --var linebreak -n --break -o "titl:" -v purl:title -n -o "link:" -v purl:link -n -o "date:" -v dc:date -n -o "desc:" -v "translate(purl:description, \$linebreak, '^')" -n "$tmpfile" 2> /dev/null > "$tmpfile.parsed"
-      test $? -ne 0 && { >&2 echo "Error parsing feed from $url."; rm -f "$tmpfile" "$tmpfile.parsed"; return 1; }
+      test "$?" -ne "0" && { >&2 echo "Error parsing feed from $url."; rm -f "$tmpfile" "$tmpfile.parsed"; return 1; }
    fi
 
    rm -f "$tmpfile"
@@ -42,8 +41,8 @@ processfeed() {
    skip=0
    while read -r line
    do
-      fn=${line/:*/}
-      data=${line/????:/}
+      fn="${line/:*/}"
+      data="${line/????:/}"
       case "$fn" in
          "date") time=$(date -d "$data" "+%s" 2> /dev/null) || { >&2 echo "Feed ($name): Error converting date format. ($data)"; error=1; }
          ;;
@@ -69,20 +68,20 @@ processfeed() {
          ;;
          "desc")
             desc="$data"
-            if test $time -gt $lasttime -a $skip -eq 0
+            if test "$time" -gt "$lasttime" -a "$skip" -eq 0
             then
-               if test $error -ne 0
+               if test "$error" -ne 0
                then
-                  err=$(( $err + 1 ))
+                  err=$(( err + 1 ))
                else
-                  if test $domail -eq 1; then
+                  if test "$domail" -eq "1"; then
                      res=$(echo -e "<html><body><b>$title</b><p>${desc//^/\\n}<p><a href=$link>$link</a><p><i>Update: $(date -d @"$time" "+%Y/%m/%d %H:%M:%S")</i></body></html>" | mail -a 'Content-Type: text/html; charset="ISO-8859-1"' -r "${emailfrom[main]}" -s "$name: $title" "${emailto[main]}" 2>&1)
                      test ${PIPESTATUS[0]} -ne 0 && { >&2 echo "Feed ($name): Error sending mail ($res)."; error=1; }
-                     new=$(($new + 1))
+                     new=$((new + 1))
                      debug 2 "Sent email for new item: $title"
                   fi
-                  if test $dokanboard -eq 1; then
-                     res=$(echo '{ "jsonrpc": "2.0", "method": "createTask", "id": 2134420212, "params": { "title": "'$name: $title'", "project_id": '$kbprid', "description": "#Description\n\n'$desc'\n\n#Link\n\n'$link'" } }' | kanboard | jq -r '.error')
+                  if test "$dokanboard" -eq "1"; then
+                     res=$(echo '{ "jsonrpc": "2.0", "method": "createTask", "id": 2134420212, "params": { "title": "'$name: $title'", "project_id": '$kbprid', "description": "#Description\n\n'"$desc"'\n\n#Link\n\n'"$link"'" } }' | kanboard | jq -r '.error')
                      test "$res" != "null" && { >&2 echo "Feed ($name): Error adding task to kanboard (error: $res)."; err=$(($err + 1));}
                      test "$res" = "null" && new=$(($new + 1))
                      debug 2 "Adding kanboard entry for new item: $title"
@@ -94,17 +93,17 @@ processfeed() {
             skip=0
          ;;
       esac
-   done < <(cat $tmpfile.parsed | tr -d \'\" )
+   done < <(cat "$tmpfile".parsed | tr -d \'\" )
    rm -f "$tmpfile.parsed"
    debug 2 "Processing done, new: $new, error: $err, new time: $maxtime"
-   echo $maxtime $new $err
+   echo "$maxtime" "$new" "$err"
 }
 
 readconfig() {
    cfg=""
    for file in $CONFIG
    do
-      test -f "$file" && { cfg=$file; break; }
+      test -f "$file" && { cfg="$file"; break; }
    done
    test "$cfg" = "" && { >&2 echo "No valid config file found ($CONFIG)."; exit 1; }
    debug 4 "Selecting config filename: $cfg"
@@ -117,7 +116,7 @@ readconfig() {
       if test "${var:0:1}" != "#"; then
          if [[ $var == \[*] ]]
          then
-             section=${var:1:-1}
+             section="${var:1:-1}"
              debug 4 "Found section: $section"
          elif [[ $val ]]
          then
@@ -130,7 +129,7 @@ readconfig() {
 
    test "${ipv4only[main]}" && { WGETFLAGS="-4"; debug 4 "IPv4 only variable set."; }
    test "${proxy[main]}" && { export http_proxy=${proxy[main]}; export https_proxy=${proxy[main]}; debug 4 "Proxy variables set."; }
-   XML=${xml[main]}
+   XML="${xml[main]}"
 }
 
 rewriteconfig() {
