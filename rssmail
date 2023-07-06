@@ -115,6 +115,10 @@ readconfig() {
          if [[ $var == \[*] ]]; then
              section="${var:1:-1}"
              debug 4 "Found section: $section"
+             declare -g -A "titleinclude[$section]"
+             declare -g -A "titleexclude[$section]"
+             declare -g -A "linkinclude[$section]"
+             declare -g -A "linkexclude[$section]"
          elif [[ $val ]]; then
              declare -g -A "$var[$section]=$val"
              debug 4 "In section $section, found variable var ($var) with value: $val"
